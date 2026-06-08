@@ -1,35 +1,95 @@
 # Automated Outreach Pipeline
 
-This project is a command-line automated outreach pipeline for the Vocallabs/Subspace SDE assignment.
+A Python CLI project for the Vocallabs/Subspace SDE assignment.
+
+The pipeline takes one seed company domain and runs an automated outreach workflow:
+
+```text
+Ocean/Ocean fallback -> Prospeo -> Brevo
+```
+
+The original assignment included Eazyreach, but the official update allowed Prospeo to replace Eazyreach for finding people, LinkedIn URLs, and email IDs.
+
+## Quick Demo
+
+```bash
+python main.py --domain openai.com --source csv --dry-run
+```
+
+This runs the safe demo path:
+
+`CSV Ocean fallback -> Prospeo mock/live-ready -> Brevo dry-run`
+
+No live emails are sent.
+
+For live Prospeo dry-run:
+
+```bash
+python main.py --domain openai.com --source csv --prospeo-live --limit-companies 2 --max-contacts-per-company 2 --dry-run
+```
+
+## 1. Project Overview
+
+This project automates a lightweight outbound workflow from a single seed domain. It finds similar companies, finds senior contacts, prepares outreach data, and can hand verified recipients to Brevo. The default path is intentionally safe for demos and interviews.
+
+## 2. Updated Pipeline
 
 Original PDF pipeline:
-`Ocean.io -> Prospeo -> Eazyreach -> Brevo`
 
-Official update:
-Subspace/Vocallabs later said Eazyreach credits were unavailable, and candidates should use Prospeo itself to find people, LinkedIn URLs, and email IDs.
+```text
+Ocean.io -> Prospeo -> Eazyreach -> Brevo
+```
 
-Current live target:
-`Ocean / Ocean fallback -> Prospeo -> Brevo`
+Official updated live/demo path:
 
-## Project Purpose
+```text
+Ocean/Ocean fallback -> Prospeo -> Brevo
+```
 
-- Find lookalike companies from one seed domain.
-- Find senior decision-makers for those companies.
-- Use Prospeo as the live contact and email source.
-- Prepare or send outreach emails with Brevo.
-- Generate JSON, CSV, and log outputs for every run.
+Eazyreach remains in the codebase only for architectural completeness and is skipped by default.
 
-## Why Eazyreach Is Skipped
+## 3. Features
 
-The original assignment included Eazyreach, but the official requirement changed. This project keeps the `EazyreachService` code only for architectural completeness. The normal live/demo path skips it entirely.
+- Single-command CLI pipeline execution
+- Ocean CSV fallback and mock mode
+- Live-ready Prospeo integration
+- Brevo dry-run by default
+- Guarded live sending through `--send-live`
+- Safety checkpoint before live email sending
+- JSON summary, CSV contact export, and pipeline logs
+- API connectivity checks with `--test-ocean`, `--test-prospeo`, and `--test-brevo`
+- Graceful error handling and retry/backoff for live APIs
+- Automated test suite with `python -m pytest`
 
-## Setup
+## 4. Architecture
+
+High-level flow:
+
+```text
+Seed Domain
+  -> OceanService (csv/mock/live placeholder)
+  -> ProspeoService (mock/live)
+  -> BrevoService (mock/dry-run/live)
+  -> JSON summary + CSV contacts + log file
+```
+
+Key modules:
+
+- `main.py` handles CLI parsing and preflight commands.
+- `app/config.py` loads `.env` and shared settings.
+- `app/pipeline.py` orchestrates the end-to-end workflow.
+- `app/services/` isolates provider-specific logic.
+- `app/models.py` defines the shared data structures between stages.
+
+## 5. Setup
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+## 6. Environment Variables
 
 Create a local `.env` file next to [main.py](C:\Users\hp5cd\Documents\subspace_Assingemnt\vocallabs-outreach-pipeline\main.py):
 
@@ -41,17 +101,17 @@ BREVO_SENDER_EMAIL=karan@karanadhanaoutreach.xyz
 BREVO_SENDER_NAME=Karan Singh Gurjar
 ```
 
-Do not commit `.env`. Do not paste API keys into chat.
+Do not commit `.env`.
 
-## Safe Commands
-
-Check whether env vars are present:
+Check env presence safely:
 
 ```powershell
 python main.py --check-env
 ```
 
-Test provider connectivity:
+## 7. Commands
+
+Provider connectivity checks:
 
 ```powershell
 python main.py --test-ocean
@@ -59,19 +119,13 @@ python main.py --test-prospeo
 python main.py --test-brevo
 ```
 
-CSV fallback dry-run:
+CSV fallback demo:
 
 ```powershell
 python main.py --domain openai.com --source csv --dry-run
 ```
 
-Live Prospeo dry-run with conservative limits:
-
-```powershell
-python main.py --domain openai.com --source csv --prospeo-live --limit-companies 2 --max-contacts-per-company 2 --dry-run
-```
-
-Validate input handling:
+Input validation:
 
 ```powershell
 python main.py --domain invalid_domain --source csv --dry-run
@@ -83,57 +137,49 @@ Run tests:
 python -m pytest
 ```
 
-## CLI Notes
+## 8. Safe Demo Path
 
-- `--mock` keeps the demo path fully local and safe.
-- `--source csv` uses the bundled `data/seed_companies.csv` fallback and does not require `OCEAN_API_KEY`.
-- `--prospeo-live` and `--live-prospeo` are aliases.
-- `--ocean-live` and `--live-ocean` are aliases.
-- `--send-live` is the only flag that allows real Brevo sending.
-- `--dry-run` always overrides `--send-live`.
+Use this for submission and interview demos:
 
-## Prospeo Live Behavior
+```powershell
+python main.py --domain openai.com --source csv --dry-run
+```
 
-Prospeo live mode:
+This path:
 
-- searches senior contacts first
-- enriches contacts to retrieve email where available
-- respects `--limit-companies`, `--limit-contacts`, and `--max-contacts-per-company`
-- retries 429/5xx/timeout cases with backoff
-- continues when one company fails
+- does not require Ocean live access
+- does not require Brevo live sending
+- skips Eazyreach
+- writes reports and logs automatically
 
-Conservative defaults:
+## 9. Live Prospeo Dry Run
 
-- `--limit-contacts` defaults to `20`
-- `--max-contacts-per-company` defaults to `3`
-
-## Brevo Live Safety
-
-- Live sending is off by default.
-- `--send-live` is required before any real email can be sent.
-- The safety checkpoint defaults to No.
-- Pressing Enter does not send.
-- One failed email does not crash the run.
-
-Warning:
-Test live Brevo only with your own email address or dedicated test contacts first.
-
-## Ocean Fallback
-
-Ocean live access is optional for submission. If Ocean API access is missing or returns `403`, use:
+Use this when `PROSPEO_API_KEY` is configured:
 
 ```powershell
 python main.py --domain openai.com --source csv --prospeo-live --limit-companies 2 --max-contacts-per-company 2 --dry-run
 ```
 
-CSV fallback rules:
+Live Prospeo behavior:
 
-- validates domains
-- deduplicates domains
-- respects `--limit-companies`
-- fails cleanly if CSV is missing, empty, or malformed
+- searches senior contacts first
+- enriches contacts for email where available
+- respects `--limit-companies`, `--limit-contacts`, and `--max-contacts-per-company`
+- uses conservative defaults to avoid excessive credit usage
 
-## Outputs
+## 10. Brevo Live Sending Safety
+
+- Live sending is off by default.
+- `--send-live` is required before any real email can be sent.
+- `--dry-run` always overrides `--send-live`.
+- Live Brevo requires `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and `BREVO_SENDER_NAME`.
+- The confirmation checkpoint defaults to `No`.
+- Pressing Enter does not send.
+- One failed email does not crash the full run.
+
+Test live Brevo only with your own email address or controlled test contacts first.
+
+## 11. Outputs
 
 Each run creates:
 
@@ -141,7 +187,7 @@ Each run creates:
 - `outputs/runs/<timestamp>_contacts.csv`
 - `outputs/logs/<timestamp>_pipeline.log`
 
-End-of-run output shows:
+End-of-run output includes:
 
 - companies found
 - contacts found
@@ -152,11 +198,28 @@ End-of-run output shows:
 - emails ready
 - emails sent
 - emails failed
-- JSON summary path
-- CSV contacts path
-- log path
+- report file paths
 
-## Troubleshooting
+## 12. Testing
+
+Run the full suite with:
+
+```powershell
+python -m pytest
+```
+
+The test suite covers:
+
+- env safety
+- CSV fallback behavior
+- invalid domain handling
+- Prospeo live preflight
+- Brevo live-send guards
+- deduplication
+- report generation
+- dry-run safety
+
+## 13. Troubleshooting
 
 - `Missing PROSPEO_API_KEY in .env`
   Add the key to your local `.env`.
@@ -169,12 +232,15 @@ End-of-run output shows:
 - No contacts found
   The run still completes and writes reports.
 - No emails found
-  Prospeo can return people without usable emails; those contacts are skipped before Brevo.
+  Contacts without usable email are skipped before Brevo.
 
-## Submission Demo Command
+## 14. Assignment Notes
 
-Even if Ocean live is unavailable, this is the safest submission-ready command:
+- The original assignment included Eazyreach.
+- The official update allowed Prospeo to replace Eazyreach for people, LinkedIn URLs, and email IDs.
+- Because Ocean live access can fail with account permission issues, the project includes CSV and mock Ocean fallback modes.
+- The safest submission-ready command is:
 
 ```powershell
-python main.py --domain openai.com --source csv --prospeo-live --limit-companies 2 --max-contacts-per-company 2 --dry-run
+python main.py --domain openai.com --source csv --dry-run
 ```
